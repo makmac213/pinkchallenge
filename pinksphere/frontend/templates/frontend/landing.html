@@ -42,13 +42,11 @@
 
         <!-- master -->
         {% if USER_GROUP == MEMBER_MASTER %}
-            {% comment %}
             <div class="row">                
                 <div class="col-md-12 col-xs-12">
                         <button data-user-id="{{ request.user.id }}" id="end-chat-session" class="btn btn-danger btn-block hidden" style="margin-bottom:10px;">End Session</button>
                 </div>
             </div>
-            {% endcomment %}
             <div class="row">
                 <ul id="chat-request-queue">
                 </ul>
@@ -350,10 +348,17 @@
                     if(data.error_code == 'non-existing') {
                         clearInterval(newMessageIntervalId);
                         $('#messages-container').addClass('hidden');
+                        $('#end-chat-session').addClass('hidden');
                         $('#chat-log').html('');
                         REQUEST_CODE = null;
                         REQUEST_STATUS = null;
                         toastr.error('Chat has ended')
+
+                        {% if USER_GROUP == MEMBER_DISCIPLE %}
+                            $('#send-chat-request').removeClass('hidden');
+                            $('#send-chat-request').removeAttr('disabled');
+                            setElemText('#send-chat-request', default_message);
+                        {% endif %}
                     } else {
                         toastr.error(data.message);
                     }
@@ -409,7 +414,7 @@
                         {% endif %}  
                         // master
                         {% if USER_GROUP == MEMBER_MASTER %}
-
+                            $('#end-chat-session').addClass('hidden');                            
                         {% endif %}
                     }
                 }

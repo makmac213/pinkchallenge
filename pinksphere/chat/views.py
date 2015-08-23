@@ -161,6 +161,7 @@ class ChatView(object):
                 context['status'] = status
             except ChatRequest.DoesNotExist:
                 context['error'] = 'Request no longer exist'
+                context['error_code'] = 'non-existing'
             return HttpResponse(json.dumps(context))
 
         @method_decorator(csrf_exempt)
