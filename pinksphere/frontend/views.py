@@ -39,7 +39,7 @@ from django.views.generic import (FormView, TemplateView, DetailView,
 from common.utils import get_form_error_messages
 
 # chat
-from chat.models import MasterAvailability
+from chat.models import MasterAvailability, ChatRequest
 
 # frontend
 from .forms import LoginForm
@@ -51,7 +51,32 @@ class FrontendView(object):
         template_name = 'frontend/landing.html'
 
         def get(self, request, *args, **kwargs):
-            context = {}
+            current_request_code = None
+            current_request_status = None
+
+            if request.user.is_authenticated():
+                if request.user.groups.filter(id=settings.MEMBER_DISCIPLE).count():
+                    # get latest accepted chat
+                    accepted_query = Q(user=request.user)
+                    accepted_query.add(Q(status=ChatRequest.STATUS_ACCEPTED), Q.AND)
+                    chat_requests = ChatRequest.objects.filter(accepted_query)
+                    if len(chat_requests):
+                        current_request_code = chat_requests[0].request_code
+                        current_request_status = chat_requests[0].status
+                    else:
+                        # get latest pending chat request
+                        pending_query = Q(user=request.user)
+                        pending_query.add(Q(status=ChatRequest.STATUS_PENDING), Q.AND)
+                        chat_requests = ChatRequest.objects.filter(pending_query)
+                        if len(chat_requests):
+                            current_request_code = chat_requests[0].request_code
+                            current_request_status = chat_requests[0].status
+                elif request.user.groups.filter(id=settings.MEMBER_MASTER).count():
+                    pass
+            context = {
+                'current_request_code': current_request_code,
+                'current_request_status': current_request_status,
+            }
             return render(request, self.template_name, context)
 
     class Login(View):
@@ -111,7 +136,18 @@ class FrontendView(object):
                 existing = MasterAvailability.objects.filter(user=user)
                 for availability in existing:
                     availability.delete()
-                
+            elif user.groups.filter(id=settings.MEMBER_DISCIPLE).count():
+                # end all pending and accepted chat
+                # accepted
+                query = Q(user=request.user)
+                sub_query = Q(status=ChatRequest.STATUS_ACCEPTED)
+                sub_query.add(Q(status=ChatRequest.STATUS_PENDING), Q.OR)
+                query.add(sub_query, Q.AND)
+                chat_requests = ChatRequest.objects.filter(query)
+                for chat_request in chat_requests:
+                    chat_request.status = ChatRequest.STATUS_ENDED
+                    chat_request.save()
+
             logout(request)
             return redirect('index') 
 

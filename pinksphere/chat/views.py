@@ -53,6 +53,14 @@ class ChatView(object):
             user_id = request.POST.get('user_id')
             try:
                 user = User.objects.get(id=user_id)
+                # expire previous pending chat requests
+                pending_query = Q(user=user)
+                pending_query.add(Q(status=ChatRequest.STATUS_PENDING), Q.OR)
+                pending_requests = ChatRequest.objects.filter(pending_query)
+                for pending_request in pending_requests:
+                    pending_request.status = ChatRequest.STATUS_EXPIRED
+                    pending_request.save()
+                # new chat request
                 chat_request = ChatRequest()
                 chat_request.user = user
                 chat_request.generate_request_code()
@@ -106,6 +114,9 @@ class ChatView(object):
                 # delete from queue
                 chat_queue = ChatQueue.objects.get(chat_request=chat_request)
                 chat_queue.delete()
+                # return message
+                context['message'] = 'Request has been accepted'
+                context['status'] = ChatRequest.STATUS_ACCEPTED
             except ChatRequest.DoesNotExist:
                 context['error'] = True
                 context['message'] = 'Request no longer exist'
@@ -122,6 +133,35 @@ class ChatView(object):
         def dispatch(self, *args, **kwargs):
             return super(ChatView.AcceptRequest, 
                                 self).dispatch(*args, **kwargs)
+
+
+    class CheckRequestStatus(View):
+        """
+        Disciple check chat request status
+        """
+
+        def post(self, request, *args, **kwargs):
+            context = {
+                'error': False,
+            }
+            user_id = request.POST.get('user_id')
+            request_code = request.POST.get('request_code')
+            try:
+                query = Q(user__id=user_id)
+                query.add(Q(request_code=request_code), Q.AND)
+                chat_request = ChatRequest.objects.get(query)
+                context['message'] = ''
+                context['status'] = chat_request.get_status_display()
+            except ChatRequest.DoesNotExist:
+                context['error'] = True
+                context['message'] = 'Request does not exist'
+            return HttpResponse(json.dumps(context))
+
+        @method_decorator(csrf_exempt)
+        def dispatch(self, *args, **kwargs):
+            return super(ChatView.CheckRequestStatus, 
+                                self).dispatch(*args, **kwargs)
+
 
 
     class CheckRequestNotifications(View):
@@ -141,18 +181,23 @@ class ChatView(object):
                 query.add(Q(chat_request__status=ChatRequest.STATUS_PENDING), 
                                 Q.AND)
                 notifications = Notification.objects.filter(query) \
-                                    .order_by(created)
-                # send notifications
-                notification_list = []
-                for notification in notifications:
-                    notification_list.append({
-                        'request_code': notification.chat_request.request_code,
-                        'user': notification.chat_request.user.username,
-                    })
-                    notification.status = Notification.STATUS_SENT
-                    notification.save()
-                context['notification_list'] = notification_list;
-                context['message'] = 'Requests available'
+                                    .order_by('created')
+                if len(notifications):
+                    # send notifications
+                    notification_list = []
+                    for notification in notifications:
+                        notification_list.append({
+                            'request_code': notification.chat_request.request_code,
+                            'user': notification.chat_request.user.username,
+                        })
+                        notification.status = Notification.STATUS_SENT
+                        notification.save()
+                    context['notification_list'] = notification_list;
+                    context['message'] = 'Requests available'
+                else:
+                    context['error'] = False
+                    context['notification_list'] = []
+                    context['message'] = 'No available requests'
             except User.DoesNotExist:
                 context['error'] = True
                 context['message'] = 'User does not exist'
@@ -161,5 +206,5 @@ class ChatView(object):
 
         @method_decorator(csrf_exempt)
         def dispatch(self, *args, **kwargs):
-            return super(ChatView.CheckNotification, 
+            return super(ChatView.CheckRequestNotifications, 
                                 self).dispatch(*args, **kwargs)

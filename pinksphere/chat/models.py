@@ -8,9 +8,13 @@ class ChatRequest(models.Model):
     STATUS_ACCEPTED = 2
     STATUS_EXPIRED = 3
     STATUS_ENDED = 4
+    STATUS_CANCELLED = 5
     STATUS_CHOICES = (
             (STATUS_PENDING, 'Pending'),
             (STATUS_ACCEPTED, 'Accepted'),
+            (STATUS_EXPIRED, 'Expired'),
+            (STATUS_ENDED, 'Ended'),
+            (STATUS_CANCELLED, 'Cancelled'),
         )
 
 
@@ -24,9 +28,12 @@ class ChatRequest(models.Model):
 
     class Meta:
         db_table = 'chat_chat_requests'
+        ordering = ['-created']
 
     def __unicode__(self):
-        return 'User: %s Code: %s' % (self.user.username, self.request_code)
+        return 'User: %s Code: %s Status: %s' % (self.user.username, 
+                                                    self.request_code,
+                                                    self.get_status_display())
 
     def generate_request_code(self):
         code = os.urandom(8).encode('hex')
@@ -68,8 +75,9 @@ class Notification(models.Model):
         db_table = 'chat_notifications'
 
     def __unicode__(self):
-        return 'Code: %s Master: %s' % (self.chat_request.request_code,
-                                            self.master.username)
+        return 'Code: %s Master: %s Status: %s' % (self.chat_request.request_code,
+                                                    self.master.username,
+                                                    self.get_status_display())
 
 
 class MasterAvailability(models.Model):
@@ -99,3 +107,5 @@ class MasterAvailability(models.Model):
     def __unicode__(self):
         return 'User: %s Status: %s' % (self.user.username, 
                                             self.get_status_display())
+
+

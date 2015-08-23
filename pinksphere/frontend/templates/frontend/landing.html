@@ -1,9 +1,41 @@
 {% extends 'frontend/base.html' %}
 
+{% block header_scripts %}
+<style type="text/css">
+    #app-title {
+        color:#FA00AF;
+        text-align:center;
+        font-size: 3em;
+        margin-bottom: 20px;
+    }
+
+    #chat-log {
+        border: 1px solid #cacaca;
+        min-height: 200px;
+    }
+
+    #messages-container {
+        margin-top:20px;
+    }
+
+    #chat-tools {
+        margin-top: 20px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
+    <h1 id="app-title">PINKISH</h1>
     {% if request.user.is_authenticated %}
-        Welcome {{ request.user.username }}
-        <a href="{% url 'logout' %}">Logout</a>
+        <div class="row">
+            <div class="col-md-12">
+                Welcome {{ request.user.username }}
+            </div>
+            <div class="col-md-12">
+                <a href="{% url 'logout' %}" class="btn btn-danger btn-block">Logout</a>
+            </div>
+        </div>
+            
 
         <!-- master -->
         {% if USER_GROUP == MEMBER_MASTER %}
@@ -15,34 +47,106 @@
         <!-- disciple -->
         {% if USER_GROUP == MEMBER_DISCIPLE %}
             <div class="row">
-                <button data-user-id="{{ request.user.id }}" id="send-chat-request" class="btn btn-primary btn-md">Send Chat Request</button>
+                <div class="col-md-12">
+                    <div class="row">
+                        <div class="col-md-12 col-xs-12">
+                            <button data-user-id="{{ request.user.id }}" id="send-chat-request" class="btn btn-primary btn-block">Send Chat Request</button>
+                        </div>
+                        <div class="col-md-12 col-xs-12">
+                            <button data-user-id="{{ request.user.id }}" id="cancel-chat-request" class="btn btn-warning btn-block hidden">Cancel Request</button>
+                        </div>
+                        <div class="col-md-12 col-xs-12">
+                            <button data-user-id="{{ request.user.id }}" id="end-chat-session" class="btn btn-danger btn-block hidden">End Session</button>
+                        </div>
+                    </div>
+                </div>
             </div>
+
+            <div class="clearfix"></div>
         {% endif %}
+
+        <div class="row">
+            <div id="messages-container" class="hidden">
+                <div class="col-md-12">
+                    <div id="chat-log">
+
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div id="chat-tools">
+                        <form class="form form-horizontal">
+                            <div class="form-group">
+                                <label class="col-md-1 col-sm-1 col-xs-3">Message: </label> 
+                                <div class="col-md-11 col-sm-11 col-xs-9">
+                                    <input type="text" class="form-control input-block" id="chat-new-message" />
+                                </div>
+                            </div>
+                            <div class="form-button col-md-12">
+                                <button type="button" class="btn btn-primary btn-block">Send</button>
+                            </div>
+                            <div class="clearfix">
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
     {% else %}
+        {% comment %}
         {% for message in messages %}
             {{ message }}
         {% endfor %}
+        {% endcomment %}
 
-        <form action="{% url 'login' %}" method="POST">
-            {% csrf_token %}
-
-            <label>
-                Username <input type="text" name="username" />
-                Password <input type="password" name="password" />      
-            </label>
-            <input type="submit" />
-        </form>
+        <div class="row">
+            <div class="col-md-4 col-md-offset-4 col-sm-4 col-sm-offset-4 col-xs-12">
+                <form action="{% url 'login' %}" method="POST" class="form form-horizontal">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label for="username" class="col-md-12">Username</label>
+                        <div class="col-md-12">
+                            <input type="text" name="username" id="username" class="form-control"/>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="password" class="col-md-12">Password</label>
+                        <div class="col-md-12">
+                            <input type="text" name="password" id="password" class="form-control"/>
+                        </div>
+                    </div>
+                    <div class="col-md-12" style="padding:0px;">
+                        <input type="submit" class="btn btn-primary btn-block" />
+                    </div>
+                </form>
+            </div>
+        </div>
     {% endif %}
 {% endblock %}
 
 {% block footer_scripts %}
 <script type="text/javascript">
     // hold the latest request code
-    var REQUEST_CODE = null;
+    {% if current_request_code %}
+        var REQUEST_CODE = '{{ current_request_code }}';
+    {% else %}
+        var REQUEST_CODE = null;
+    {% endif %}
+    {% if current_request_status %}
+        var REQUEST_STATUS = {{ current_request_status }};
+    {% else %}
+        var REQUEST_STATUS = null;
+    {% endif %}
+    var REQUEST_PENDING = 1;
+    var REQUEST_ACCEPTED = 2;
+    var intervalID = null;
+    var default_message = 'Send Chat Request';
+    var sending_message = 'Sending request...';     
+    var pending_message = 'Waiting for a master to accept'      
+    var success_message = 'Request sent';
 
     // disciple
     function send_chat_request(user_id) {
         var ret = null;
+        var elem = '#send-chat-request';
 
         $.ajax({
             url: '{% url "send_request" %}',
@@ -52,17 +156,43 @@
                 var data = JSON.parse(response);
                 if(data.error) {
                     toastr.error(data.message);
+                    set_elem_text(elem, default_message);
+                    $(elem).removeAttr('disabled');
                     ret = false;
                 } else {
                     toastr.success(data.message);
                     // set current request code
                     REQUEST_CODE = data.request_code;
-                    ret = true;
+                    REQUEST_STATUS = REQUEST_PENDING;
+                    $(elem).attr('disabled', 'disabled');
+                    $('#cancel-chat-request').removeClass('hidden');
+                    set_elem_text(elem, pending_message)
+                    // set status checker
+                    intervalID = setInterval(function() {
+                                                checkRequestStatus(user_id, data.request_code)
+                                            }, 4000)
                 }             
             }
         });
 
         return ret;
+    }
+
+    function checkRequestStatus(user_id, code) {
+        if(REQUEST_STATUS == REQUEST_PENDING) {
+            $.ajax({
+                url: '{% url "check_request_status" %}',
+                type: 'POST',
+                data: {
+                    'user_id': user_id,
+                    'request_code': code
+                },
+                success: function(response) {
+                    var data = JSON.parse(response);
+                    console.log(response);
+                }
+            });
+        }
     }
 
     // master
@@ -77,53 +207,99 @@
                     toastr.error(data.message)
                 } else {
                     var notifications = data.notification_list;
+                    toastr.options = {
+                      "closeButton": true,
+                      "extendedTimeOut": "0",
+                      "timeOut": "0"
+                    }   
                     $.each(notifications, function() {
                         html = '<div class="request-notification">';
-                            html += this['user'] + ' requested a chat';
-                            html += '<button class="accept-request" data-request-code="' + this['request_code'] + '">';
+                            html += this['user'] + ' requested a chat. ';
+                            html += '<br />'
+                            html += '<button class="accept-request btn btn-primary btn-xs" data-request-code="' + this['request_code'] + '">';
+                            html += 'Accept';
+                            html += '</button>'
                         html += '</div>';
-                        toastr.info(html);
+                        toastr.success(html);
                     });
                 }
             }
         });
     }
 
+    function acceptRequest(user_id, request_code) {
+        $.ajax({
+            url: '{% url "accept_request" %}',
+            type: 'POST',
+            data: {
+                'user_id': user_id,
+                'request_code': request_code
+            },
+            success: function(response) {
+                var data = JSON.parse(response);
+
+            }
+        });        
+
+        REQUEST_CODE = request_code;
+        REQUEST_STATUS = REQUEST_ACCEPTED;
+    }
+
     // all
     function set_elem_text(elem, msg) {
-        $(elem).val(msg);
+        $(elem).html(msg);
     }
 
     $(function() {
         // disciple
         {% if USER_GROUP == MEMBER_DISCIPLE %}
-        $('#send-chat-request').on('click', function() {
-            // disciple
-            // init
-            var elem = '#send-chat-request';
-            var user_id = $(this).data('user-id');
-            var default_message = 'Send Chat Request';
-            var sending_message = 'Sending request...';           
-            var success_message = 'Request sent';
-            
-            set_elem_text(elem, sending_message);
-            $(this).attr('disabled', 'disabled');
-            // send request
-            ret = send_chat_request(user_id);
-            if(ret) {
-                // success
-                set_elem_text(elem, success_message);
-            } else {
-                // error
-                set_elem_text(elem, default_message);
-                $(this).removeAttr('disabled', 'disabled');
+            // sEND
+            $('#send-chat-request').on('click', function() {
+                // disciple
+                // init
+                var elem = '#send-chat-request';
+                var user_id = $(this).data('user-id');
+                
+                set_elem_text(elem, sending_message);
+                $(this).attr('disabled', 'disabled');
+                // send request
+                send_chat_request(user_id);
+            });
+
+            // Cancel
+            $('#cancel-chat-request').on('click', function() {
+                var elem = '#send-chat-request';
+                set_elem_text(elem, pending_message);
+                $(elem).removeAttr('disabled', 'disabled');
+                $(this).addClass('hidden');
+            });
+
+
+            if(REQUEST_CODE) {
+                msg = '';
+                if(REQUEST_STATUS == 1) {
+                    msg = pending_message;
+                    $('#send-chat-request').attr('disabled', 'disabled');
+                    $('#cancel-chat-request').removeClass('hidden');
+                } else if (REQUEST_STATUS == 2) {
+                    $('#messages-container').removeClass('hidden');
+                    $('#end-chat-session').removeClass('hidden');
+                    $('#send-chat-request').addClass('hidden');
+                }
+                set_elem_text('#send-chat-request', msg);
             }
-        });
         {% endif %}
 
         // master
         {% if USER_GROUP == MEMBER_MASTER %}
-            setInterval(checkRequestNotifications({{ request.user.id }}), 4000);
+            setInterval(function() {
+                            checkRequestNotifications({{ request.user.id }})
+                        }, 4000);
+
+            $('body').on('click', '.accept-request', function() {
+                var request_code = $(this).data('request-code');
+                acceptRequest({{ request.user.id }}, request_code);
+            });
         {% endif %}
     });
 </script>

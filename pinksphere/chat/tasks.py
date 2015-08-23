@@ -12,7 +12,7 @@ from .models import ChatRequest, Notification
 def send_chat_notifications(request):
     # this function will be called through celery
     # and should run async
-    group = settings.MEMBER_DISCIPLE
+    group = settings.MEMBER_MASTER
     masters = User.objects.filter(groups=group)
     for master in masters:
         notification = Notification()
