@@ -18,8 +18,11 @@ urlpatterns = patterns('',
 
     # Uncomment the next line to enable the admin:
     url(r'^django/admin/', include(admin.site.urls)),
-    # apps
+    ### apps
+    # frontend
     url(r'', include('frontend.urls')),
+    # chat
+    url(r'^chat/', include('chat.urls')),
 )
 # media
 urlpatterns += patterns("",

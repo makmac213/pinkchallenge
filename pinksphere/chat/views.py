@@ -36,14 +36,14 @@ from django.views.generic import (FormView, TemplateView, DetailView,
                                     ListView, UpdateView)
 
 # chat
-from .models import ChatRequest, ChatQueue, MasterAvailability
+from .models import ChatRequest, ChatQueue, MasterAvailability, Notification
 from .tasks import send_chat_notifications
 
 class ChatView(object):
 
     class SendRequest(View):
         """
-        Send request (ajax)
+        Disciple send request (ajax)
         """
 
         def post(self, request, *args, **kwargs):
@@ -73,12 +73,13 @@ class ChatView(object):
 
         @method_decorator(csrf_exempt)
         def dispatch(self, *args, **kwargs):
-            return super(ChatView.SendRequest, *args, **kwargs)
+            return super(ChatView.SendRequest, 
+                                self).dispatch(*args, **kwargs)
 
 
     class AcceptRequest(View):
         """
-        Accept the request (ajax)
+        Master accept the request (ajax)
         """
 
         def post(self, request, *args, **kwargs):
@@ -119,4 +120,46 @@ class ChatView(object):
 
         @method_decorator(csrf_exempt)
         def dispatch(self, *args, **kwargs):
-            return super(ChatView.AcceptRequest, *args, **kwargs)
+            return super(ChatView.AcceptRequest, 
+                                self).dispatch(*args, **kwargs)
+
+
+    class CheckRequestNotifications(View):
+        """
+        Master check request notifications
+        """
+
+        def post(self, request, *args, **kwargs):
+            context = {
+                'error': False,
+            }
+            user_id = request.POST.get('user_id')
+            try:
+                user = User.objects.get(id=user_id)
+                query = Q(master=user)
+                query.add(Q(status=Notification.STATUS_PENDING), Q.AND)
+                query.add(Q(chat_request__status=ChatRequest.STATUS_PENDING), 
+                                Q.AND)
+                notifications = Notification.objects.filter(query) \
+                                    .order_by(created)
+                # send notifications
+                notification_list = []
+                for notification in notifications:
+                    notification_list.append({
+                        'request_code': notification.chat_request.request_code,
+                        'user': notification.chat_request.user.username,
+                    })
+                    notification.status = Notification.STATUS_SENT
+                    notification.save()
+                context['notification_list'] = notification_list;
+                context['message'] = 'Requests available'
+            except User.DoesNotExist:
+                context['error'] = True
+                context['message'] = 'User does not exist'
+            return HttpResponse(json.dumps(context))
+
+
+        @method_decorator(csrf_exempt)
+        def dispatch(self, *args, **kwargs):
+            return super(ChatView.CheckNotification, 
+                                self).dispatch(*args, **kwargs)

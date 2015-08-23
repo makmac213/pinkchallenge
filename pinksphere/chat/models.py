@@ -25,6 +25,9 @@ class ChatRequest(models.Model):
     class Meta:
         db_table = 'chat_chat_requests'
 
+    def __unicode__(self):
+        return 'User: %s Code: %s' % (self.user.username, self.request_code)
+
     def generate_request_code(self):
         code = os.urandom(8).encode('hex')
         if ChatRequest.objects.filter(request_code=code).count():
@@ -38,15 +41,35 @@ class ChatQueue(models.Model):
 
     class Meta:
         db_table = 'chat_chat_queue'
+        ordering = ['-chat_request__created']
+
+    def __unicode__(self):
+        return 'User: %s Code: %s' % (self.chat_request.user.username,
+                                        self.chat_request.request_code)
 
 
 class Notification(models.Model):
+    STATUS_PENDING = 1
+    STATUS_SENT = 2
+    STATUS_EXPIRED = 3
+    STATUS_CHOICES = (
+            (STATUS_PENDING, 'Pending'),
+            (STATUS_SENT, 'Sent'),
+            (STATUS_EXPIRED, 'Expired'),
+        )
+
     master = models.ForeignKey(User)
     chat_request = models.ForeignKey(ChatRequest)
     created = models.DateTimeField(auto_now_add=True)
+    status = models.IntegerField(choices=STATUS_CHOICES, 
+                                    default=STATUS_PENDING)
 
     class Meta:
         db_table = 'chat_notifications'
+
+    def __unicode__(self):
+        return 'Code: %s Master: %s' % (self.chat_request.request_code,
+                                            self.master.username)
 
 
 class MasterAvailability(models.Model):
@@ -65,8 +88,14 @@ class MasterAvailability(models.Model):
         )
 
     user = models.ForeignKey(User)
-    status = models.IntegerField(choices=STATUS_CHOICES)
+    status = models.IntegerField(choices=STATUS_CHOICES, 
+                                    default=STATUS_AVAILABLE)
     created = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'chat_master_availabilities'
+        verbose_name_plural = 'available masters'
+
+    def __unicode__(self):
+        return 'User: %s Status: %s' % (self.user.username, 
+                                            self.get_status_display())

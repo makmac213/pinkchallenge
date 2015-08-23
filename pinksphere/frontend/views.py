@@ -38,19 +38,28 @@ from django.views.generic import (FormView, TemplateView, DetailView,
 # common
 from common.utils import get_form_error_messages
 
+# chat
+from chat.models import MasterAvailability
+
 # frontend
 from .forms import LoginForm
 
+
 class FrontendView(object):
 
-    class Index(TemplateView):
+    class Index(View):
         template_name = 'frontend/landing.html'
 
+        def get(self, request, *args, **kwargs):
+            context = {}
+            return render(request, self.template_name, context)
 
     class Login(View):
 
         def post(self, request, *args, **kwargs):
             logout(request)
+
+            ret = request.GET.get('next', 'index')
 
             form = LoginForm(request.POST)
 
@@ -61,22 +70,48 @@ class FrontendView(object):
                 if auth_user is not None:
                     if auth_user.is_active:
                         login(request, auth_user)
-                        # chech user type
-                        msg = 'Logged-in'
+                        # check user type member/disciple
+                        if auth_user.groups.filter(id=settings.MEMBER_MASTER).count():
+                            # user is a master create availability
+                            # delete previous record
+                            existing = MasterAvailability.objects.filter(user=auth_user)
+                            for availability in existing:
+                                availability.delete()
+                            # create record
+                            availability = MasterAvailability()
+                            availability.user = auth_user
+                            availability.save()
+
+                        elif auth_user.groups.filter(id=settings.MEMBER_DISCIPLE).count():
+                            # add other disciple functionalities here
+                            pass                            
+                        messages.success(request, 'Welcome')
+                        print 1
                     else:
                         # user is inactive
-                        msg = 'User inactive'
+                        print 2
+                        messages.error(request, 'Invalid username/password')
                 else:
                     # user does not exist
-                    msg = 'User does not exist`'
-            else:
-                msg = get_form_error_messages(form)
+                    print 3
+                    messages.error(request, 'Invalid username/password')
 
-            return HttpResponse(msg)
+            else:
+                print 4
+                msg = get_form_error_messages(form)
+                messages.error(request, msg)
+            return redirect(ret)
 
 
     class Logout(View):
         def get(self, request, *args, **kwargs):
+            user = request.user
+            if user.groups.filter(id=settings.MEMBER_MASTER).count():
+                # delete availabilities
+                existing = MasterAvailability.objects.filter(user=user)
+                for availability in existing:
+                    availability.delete()
+                
             logout(request)
             return redirect('index') 
 
