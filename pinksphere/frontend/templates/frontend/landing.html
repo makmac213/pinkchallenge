@@ -1,0 +1,10 @@
+
+<form action="{% url 'login' %}" method="POST">
+	{% csrf_token %}
+
+	<label>
+		Username <input type="text" name="username" />
+		Password <input type="text" name="password" />		
+	</label>
+	<input type="submit" />
+</form>

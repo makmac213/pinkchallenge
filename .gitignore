@@ -1,0 +1,11 @@
+*.sqlite3
+*.pyc
+localsettings.py
+*.scssc
+*.sassc
+*.jscomment
+*.sublime-workspace
+*.sublime-project
+*/logs
+
+assets/

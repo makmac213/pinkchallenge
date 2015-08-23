@@ -1,0 +1,117 @@
+[
+{
+    "pk": 1, 
+    "model": "auth.group", 
+    "fields": {
+        "name": "Masters", 
+        "permissions": []
+    }
+},
+{
+    "pk": 2, 
+    "model": "auth.group", 
+    "fields": {
+        "name": "Disciples", 
+        "permissions": []
+    }
+},
+{
+    "pk": 1, 
+    "model": "auth.user", 
+    "fields": {
+        "username": "admin", 
+        "first_name": "", 
+        "last_name": "", 
+        "is_active": true, 
+        "is_superuser": true, 
+        "is_staff": true, 
+        "last_login": "2015-08-23T03:14:07Z", 
+        "groups": [], 
+        "user_permissions": [], 
+        "password": "pbkdf2_sha256$10000$hUkpzKiWFegQ$m7u0TRp5jPeHkepva1rsqCa+9LRICN6NZ3HpjhyZjeM=", 
+        "email": "mapph.com@gmail.com", 
+        "date_joined": "2015-08-23T01:55:13Z"
+    }
+},
+{
+    "pk": 2, 
+    "model": "auth.user", 
+    "fields": {
+        "username": "disciple.1@mailcatch.com", 
+        "first_name": "", 
+        "last_name": "", 
+        "is_active": true, 
+        "is_superuser": false, 
+        "is_staff": false, 
+        "last_login": "2015-08-23T03:15:03Z", 
+        "groups": [
+            2
+        ], 
+        "user_permissions": [], 
+        "password": "pbkdf2_sha256$10000$02criaMc7Q3q$vOn6PVTFthVz5FbK1xYoBxOh4FPfzlYqIbcsI4HDWc4=", 
+        "email": "disciple.1@mailcatch.com", 
+        "date_joined": "2015-08-23T03:15:03Z"
+    }
+},
+{
+    "pk": 3, 
+    "model": "auth.user", 
+    "fields": {
+        "username": "master.1@mailcatch.com", 
+        "first_name": "", 
+        "last_name": "", 
+        "is_active": true, 
+        "is_superuser": false, 
+        "is_staff": false, 
+        "last_login": "2015-08-23T03:15:34Z", 
+        "groups": [
+            1
+        ], 
+        "user_permissions": [], 
+        "password": "pbkdf2_sha256$10000$je7mIjvjDCe4$TANW5syc8Qlmji/uuexy87Cb8v/yMh6c8LXGL9svFlU=", 
+        "email": "master.1@mailcatch.com", 
+        "date_joined": "2015-08-23T03:15:34Z"
+    }
+},
+{
+    "pk": 4, 
+    "model": "auth.user", 
+    "fields": {
+        "username": "disciple.2@mailcatch.com", 
+        "first_name": "", 
+        "last_name": "", 
+        "is_active": true, 
+        "is_superuser": false, 
+        "is_staff": false, 
+        "last_login": "2015-08-23T03:15:03Z", 
+        "groups": [
+            2
+        ], 
+        "user_permissions": [], 
+        "password": "pbkdf2_sha256$10000$02criaMc7Q3q$vOn6PVTFthVz5FbK1xYoBxOh4FPfzlYqIbcsI4HDWc4=", 
+        "email": "disciple.2@mailcatch.com", 
+        "date_joined": "2015-08-23T03:15:03Z"
+    }
+},
+{
+    "pk": 5, 
+    "model": "auth.user", 
+    "fields": {
+        "username": "master.2@mailcatch.com", 
+        "first_name": "", 
+        "last_name": "", 
+        "is_active": true, 
+        "is_superuser": false, 
+        "is_staff": false, 
+        "last_login": "2015-08-23T03:15:34Z", 
+        "groups": [
+            1
+        ], 
+        "user_permissions": [], 
+        "password": "pbkdf2_sha256$10000$je7mIjvjDCe4$TANW5syc8Qlmji/uuexy87Cb8v/yMh6c8LXGL9svFlU=", 
+        "email": "master.2@mailcatch.com", 
+        "date_joined": "2015-08-23T03:15:34Z"
+    }
+}
+
+]
