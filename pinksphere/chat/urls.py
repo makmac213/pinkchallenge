@@ -18,5 +18,10 @@ urlpatterns = patterns('',
     url(r'^check-request-status/$', 
             ChatView.CheckRequestStatus.as_view(), 
             name='check_request_status'),
-
+    url(r'^message/new/$', 
+            ChatView.NewMessage.as_view(), 
+            name='new_message'),
+    url(r'^message/check-new/$', 
+            ChatView.CheckNewMessage.as_view(), 
+            name='check_new_messages'),
 )

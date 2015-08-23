@@ -109,3 +109,14 @@ class MasterAvailability(models.Model):
                                             self.get_status_display())
 
 
+class ChatMessage(models.Model):
+    chat_request = models.ForeignKey(ChatRequest, related_name='messages')
+    sender = models.ForeignKey(User)
+    message = models.TextField(null=True, blank=True)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'chat_chat_messages'
+
+    def __unicode__(self):
+        return 'Sender: %s Chat: %s' % (self.sender.id, self.chat_request.id)

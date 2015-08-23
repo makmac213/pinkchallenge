@@ -53,6 +53,7 @@ class FrontendView(object):
         def get(self, request, *args, **kwargs):
             current_request_code = None
             current_request_status = None
+            current_messages = None
 
             if request.user.is_authenticated():
                 if request.user.groups.filter(id=settings.MEMBER_DISCIPLE).count():
@@ -63,6 +64,14 @@ class FrontendView(object):
                     if len(chat_requests):
                         current_request_code = chat_requests[0].request_code
                         current_request_status = chat_requests[0].status
+                        current_messages = []
+                        for message in chat_requests[0].messages.filter().order_by('created'):
+                            d = {
+                                'id': str(message.id),
+                                'message': str(message.message or ''),
+                                'sender': str(message.sender.username),
+                            }
+                            current_messages.append(d)
                     else:
                         # get latest pending chat request
                         pending_query = Q(user=request.user)
@@ -72,10 +81,25 @@ class FrontendView(object):
                             current_request_code = chat_requests[0].request_code
                             current_request_status = chat_requests[0].status
                 elif request.user.groups.filter(id=settings.MEMBER_MASTER).count():
-                    pass
+                    # latest accepted chat request
+                    accepted_query = Q(status=ChatRequest.STATUS_ACCEPTED)
+                    accepted_query.add(Q(accepted_by=request.user), Q.AND)
+                    chat_requests = ChatRequest.objects.filter(accepted_query)
+                    if len(chat_requests):
+                        current_request_code = chat_requests[0].request_code
+                        current_request_status = chat_requests[0].status
+                        current_messages = []
+                        for message in chat_requests[0].messages.filter().order_by('created'):
+                            d = {
+                                'message': str(message.message or ''),
+                                'sender': str(message.sender.username),
+                            }
+                            current_messages.append(d)
+
             context = {
                 'current_request_code': current_request_code,
                 'current_request_status': current_request_status,
+                'current_messages': current_messages,
             }
             return render(request, self.template_name, context)
 
@@ -111,18 +135,14 @@ class FrontendView(object):
                             # add other disciple functionalities here
                             pass                            
                         messages.success(request, 'Welcome')
-                        print 1
                     else:
                         # user is inactive
-                        print 2
                         messages.error(request, 'Invalid username/password')
                 else:
                     # user does not exist
-                    print 3
                     messages.error(request, 'Invalid username/password')
 
             else:
-                print 4
                 msg = get_form_error_messages(form)
                 messages.error(request, msg)
             return redirect(ret)

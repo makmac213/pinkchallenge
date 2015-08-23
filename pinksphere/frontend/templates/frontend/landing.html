@@ -2,6 +2,7 @@
 
 {% block header_scripts %}
 <style type="text/css">
+
     #app-title {
         color:#FA00AF;
         text-align:center;
@@ -12,6 +13,8 @@
     #chat-log {
         border: 1px solid #cacaca;
         min-height: 200px;
+        max-height: 300px;
+        overflow-y: scroll;
     }
 
     #messages-container {
@@ -27,7 +30,7 @@
 {% block content %}
     <h1 id="app-title">PINKISH</h1>
     {% if request.user.is_authenticated %}
-        <div class="row">
+        <div class="row" style="margin-bottom:10px;">
             <div class="col-md-12">
                 Welcome {{ request.user.username }}
             </div>
@@ -50,13 +53,13 @@
                 <div class="col-md-12">
                     <div class="row">
                         <div class="col-md-12 col-xs-12">
-                            <button data-user-id="{{ request.user.id }}" id="send-chat-request" class="btn btn-primary btn-block">Send Chat Request</button>
+                            <button data-user-id="{{ request.user.id }}" id="send-chat-request" class="btn btn-primary btn-block" style="margin-bottom:10px;">Send Chat Request</button>
                         </div>
                         <div class="col-md-12 col-xs-12">
-                            <button data-user-id="{{ request.user.id }}" id="cancel-chat-request" class="btn btn-warning btn-block hidden">Cancel Request</button>
+                            <button data-user-id="{{ request.user.id }}" id="cancel-chat-request" class="btn btn-warning btn-block hidden" style="margin-bottom:10px;">Cancel Request</button>
                         </div>
                         <div class="col-md-12 col-xs-12">
-                            <button data-user-id="{{ request.user.id }}" id="end-chat-session" class="btn btn-danger btn-block hidden">End Session</button>
+                            <button data-user-id="{{ request.user.id }}" id="end-chat-session" class="btn btn-danger btn-block hidden" style="margin-bottom:10px;">End Session</button>
                         </div>
                     </div>
                 </div>
@@ -82,7 +85,7 @@
                                 </div>
                             </div>
                             <div class="form-button col-md-12">
-                                <button type="button" class="btn btn-primary btn-block">Send</button>
+                                <button type="button" class="btn btn-primary btn-block send-message">Send</button>
                             </div>
                             <div class="clearfix">
                         </form>
@@ -110,7 +113,7 @@
                     <div class="form-group">
                         <label for="password" class="col-md-12">Password</label>
                         <div class="col-md-12">
-                            <input type="text" name="password" id="password" class="form-control"/>
+                            <input type="password" name="password" id="password" class="form-control"/>
                         </div>
                     </div>
                     <div class="col-md-12" style="padding:0px;">
@@ -138,15 +141,27 @@
     var REQUEST_PENDING = 1;
     var REQUEST_ACCEPTED = 2;
     var intervalID = null;
+    var newMessageIntervalId = null;
     var default_message = 'Send Chat Request';
     var sending_message = 'Sending request...';     
     var pending_message = 'Waiting for a master to accept'      
     var success_message = 'Request sent';
+    {% comment %}
+    {% if current_messages %}
+        var message_list = {% autoescape off %}{{ current_messages }}{% endautoescape %};
+    {% else %}
+        var message_list = [];
+    {% endif %}
+    {% endcomment %}
+
+    var message_list = [];
 
     // disciple
     function send_chat_request(user_id) {
         var ret = null;
         var elem = '#send-chat-request';
+
+        clearInterval(intervalID);
 
         $.ajax({
             url: '{% url "send_request" %}',
@@ -156,7 +171,7 @@
                 var data = JSON.parse(response);
                 if(data.error) {
                     toastr.error(data.message);
-                    set_elem_text(elem, default_message);
+                    setElemText(elem, default_message);
                     $(elem).removeAttr('disabled');
                     ret = false;
                 } else {
@@ -166,7 +181,7 @@
                     REQUEST_STATUS = REQUEST_PENDING;
                     $(elem).attr('disabled', 'disabled');
                     $('#cancel-chat-request').removeClass('hidden');
-                    set_elem_text(elem, pending_message)
+                    setElemText(elem, pending_message)
                     // set status checker
                     intervalID = setInterval(function() {
                                                 checkRequestStatus(user_id, data.request_code)
@@ -189,6 +204,14 @@
                 },
                 success: function(response) {
                     var data = JSON.parse(response);
+                    if(!data.error) {
+                        if(data.status_code == 2) {
+                            $('#messages-container').removeClass('hidden');
+                            $('#end-chat-session').removeClass('hidden');
+                            $('#cancel-chat-request').addClass('hidden');
+                            $('#send-chat-request').addClass('hidden');                            
+                        }
+                    }
                     console.log(response);
                 }
             });
@@ -237,6 +260,13 @@
             },
             success: function(response) {
                 var data = JSON.parse(response);
+                if(data.error) {
+                    toastr.error(data.message);
+                } else {
+                    toastr.success(data.message);
+                    $('#messages-container').removeClass('hidden');
+                }
+
 
             }
         });        
@@ -246,10 +276,79 @@
     }
 
     // all
-    function set_elem_text(elem, msg) {
+    function setElemText(elem, msg) {
         $(elem).html(msg);
     }
 
+    function newMessage(user_id, request_code, chat_message) {
+        $.ajax({
+            url: '{% url "new_message" %}',
+            type: 'POST',
+            data: {
+                'user_id': user_id,
+                'request_code': request_code,
+                'message': chat_message
+            },
+            success: function(response) {
+                var data = JSON.parse(response);
+                if(data.error) {
+                    toastr.error(data.message);
+                }
+                $('.send-message').removeAttr('disabled');
+            }
+        });
+    }
+
+    function appendToChat(msg) {
+        var elem = $('#chat-log')[0];
+        $('#chat-log').append(msg + '<br />');
+        sh = elem.scrollHeight;
+        h = $('#chat-log').height();
+        $('#chat-log').scrollTop(sh - h);
+    }
+
+    function getMessageIds() {
+        var ids = [];
+        $.each(message_list, function() {
+            ids.push(this.id);
+        });
+        return ids;
+    }
+
+    function checkNewMessages() {
+        $.ajax({
+            url: '{% url "check_new_messages" %}',
+            type: 'POST',
+            data: {
+                'request_code': REQUEST_CODE,
+                'existing_ids': JSON.stringify(getMessageIds(message_list))
+            },
+            success: function(response) {
+                var data = JSON.parse(response);
+                if(data.error) {
+                    toastr.error(data.message);
+                } else {
+                    $.each(data.new_messages, function() {
+                        var that = this;
+                        var found = false;
+                        $.each(message_list, function() {
+                            if(this.id == that.id) {
+                                found = true;
+                            }
+                        });
+
+                        if(!found) {
+                            message_list.push(this);    
+                            chat_message = this.sender + ': ' + this.message;
+                            appendToChat(chat_message);
+                        }                                                
+                    })
+                }
+            }
+        });
+    }
+
+    // load
     $(function() {
         // disciple
         {% if USER_GROUP == MEMBER_DISCIPLE %}
@@ -260,7 +359,7 @@
                 var elem = '#send-chat-request';
                 var user_id = $(this).data('user-id');
                 
-                set_elem_text(elem, sending_message);
+                setElemText(elem, sending_message);
                 $(this).attr('disabled', 'disabled');
                 // send request
                 send_chat_request(user_id);
@@ -269,14 +368,19 @@
             // Cancel
             $('#cancel-chat-request').on('click', function() {
                 var elem = '#send-chat-request';
-                set_elem_text(elem, pending_message);
+                setElemText(elem, default_message);
                 $(elem).removeAttr('disabled', 'disabled');
                 $(this).addClass('hidden');
+                clearInterval(intervalID);
             });
 
 
             if(REQUEST_CODE) {
                 msg = '';
+                // set status checker
+                intervalID = setInterval(function() {
+                                            checkRequestStatus({{ request.user.id }}, REQUEST_CODE);
+                                        }, 4000)
                 if(REQUEST_STATUS == 1) {
                     msg = pending_message;
                     $('#send-chat-request').attr('disabled', 'disabled');
@@ -285,8 +389,14 @@
                     $('#messages-container').removeClass('hidden');
                     $('#end-chat-session').removeClass('hidden');
                     $('#send-chat-request').addClass('hidden');
+                    // fill chat log
+                    $.each(message_list, function() {
+                        chat_msg = this['sender'] + ': ' + this['message'];
+                        appendToChat(chat_msg);
+                    });
+                    newMessageIntervalId = setInterval(checkNewMessages, 2000);
                 }
-                set_elem_text('#send-chat-request', msg);
+                setElemText('#send-chat-request', msg);
             }
         {% endif %}
 
@@ -298,9 +408,52 @@
 
             $('body').on('click', '.accept-request', function() {
                 var request_code = $(this).data('request-code');
-                acceptRequest({{ request.user.id }}, request_code);
+                acceptRequest({{ request.user.id }}, request_code);                
             });
+
+            if(REQUEST_CODE) {
+                // session on-going
+                if(REQUEST_STATUS == 2) {
+                    $('#messages-container').removeClass('hidden'); 
+                    // fill chat log
+                    $.each(message_list, function() {
+                        chat_msg = this['sender'] + ': ' + this['message'];
+                        appendToChat(chat_msg);
+                    });       
+                    newMessageIntervalId = setInterval(checkNewMessages, 2000);
+                }
+            }
         {% endif %}
+
+        // all
+        $('.send-message').on('click', function() {
+            $(this).attr('disabled', 'disabled');
+            var chat_message = $('#chat-new-message').val();
+            $('#chat-new-message').val('');
+            if(chat_message == '') {
+                $('#chat-new-message').focus();
+                toastr.error('Your message is empty');
+                $(this).removeAttr('disabled', 'disabled');
+            } else {
+                newMessage({{ request.user.id }}, REQUEST_CODE, chat_message);
+            }
+        });
+
+        $('#chat-new-message').on('keypress', function(e) {
+            if(e.keyCode == 13) {
+                e.preventDefault();
+                var chat_message = $('#chat-new-message').val();
+                $('#chat-new-message').val('');
+                if(chat_message == '') {
+                    $('#chat-new-message').focus();
+                    toastr.error('Your message is empty');
+                    $(this).removeAttr('disabled', 'disabled');
+                } else {
+                    newMessage({{ request.user.id }}, REQUEST_CODE, chat_message);
+                }
+                return false;                
+            }
+        });
     });
 </script>
 {% endblock %}

@@ -36,7 +36,8 @@ from django.views.generic import (FormView, TemplateView, DetailView,
                                     ListView, UpdateView)
 
 # chat
-from .models import ChatRequest, ChatQueue, MasterAvailability, Notification
+from .models import (ChatRequest, ChatQueue, MasterAvailability, Notification,
+                        ChatMessage)
 from .tasks import send_chat_notifications
 
 class ChatView(object):
@@ -135,6 +136,12 @@ class ChatView(object):
                                 self).dispatch(*args, **kwargs)
 
 
+    class ChangeChatRequestStaus(View):
+        """
+        (All) end chat
+        """
+        pass
+
     class CheckRequestStatus(View):
         """
         Disciple check chat request status
@@ -152,6 +159,7 @@ class ChatView(object):
                 chat_request = ChatRequest.objects.get(query)
                 context['message'] = ''
                 context['status'] = chat_request.get_status_display()
+                context['status_code'] = chat_request.status
             except ChatRequest.DoesNotExist:
                 context['error'] = True
                 context['message'] = 'Request does not exist'
@@ -208,3 +216,83 @@ class ChatView(object):
         def dispatch(self, *args, **kwargs):
             return super(ChatView.CheckRequestNotifications, 
                                 self).dispatch(*args, **kwargs)
+
+
+    class NewMessage(View):
+        """
+        All user types send message
+        """
+        def post(self, request, *args, **kwargs):
+            context = {
+                'error': False,
+            }
+            request_code = request.POST.get('request_code')
+            user_id = request.POST.get('user_id')
+            message = request.POST.get('message')
+            try:
+                user = User.objects.get(id=user_id)
+                query = Q(request_code=request_code)
+                query.add(Q(status=ChatRequest.STATUS_ACCEPTED), Q.AND)
+                chat_request = ChatRequest.objects.get(query)
+                chat_message = ChatMessage()
+                chat_message.chat_request = chat_request
+                chat_message.sender = user
+                chat_message.message = message
+                chat_message.save()
+                msg = '%s: %s' % (user.username, message)
+                context['chat_message'] = msg
+            except User.DoesNotExist:
+                context['error'] = True
+                context['message'] = 'User does not exist'
+            except ChatRequest.DoesNotExist:
+                context['error'] = True
+                context['message'] = 'Chat request does not exist'
+            return HttpResponse(json.dumps(context))
+
+
+        @method_decorator(csrf_exempt)
+        def dispatch(self, *args, **kwargs):
+            return super(ChatView.NewMessage, 
+                                self).dispatch(*args, **kwargs)
+
+
+    class CheckNewMessage(View):
+        """
+        All user types get new messages
+        """
+        def post(self, request, *args, **kwargs):
+            context = {
+                'error': False,
+            }            
+            existing_ids = request.POST.getlist('existing_ids', [])
+            existing_ids = json.loads(existing_ids[0])
+            request_code = request.POST.get('request_code')
+            try:
+                query = Q(request_code=request_code)
+                query.add(Q(status=ChatRequest.STATUS_ACCEPTED), Q.AND)
+                chat_request = ChatRequest.objects.get(query)
+                # filter messages
+                message_query = Q(chat_request=chat_request)
+                message_query.add(~Q(id__in=existing_ids), Q.AND)
+                chat_messages = ChatMessage.objects.filter(message_query) \
+                                    .order_by('created')
+                new_messages = []
+                for message in chat_messages:
+                    d = {
+                        'id': str(message.id),
+                        'message': str(message.message or ''),
+                        'sender': str(message.sender.username),
+                    }
+                    new_messages.append(d)
+                context['new_messages'] = new_messages
+            except ChatRequest.DoesNotExist:
+                context['error'] = True
+                context['message'] = 'Chat request does not exist'
+            return HttpResponse(json.dumps(context))
+
+
+        @method_decorator(csrf_exempt)
+        def dispatch(self, *args, **kwargs):
+            return super(ChatView.CheckNewMessage, 
+                                self).dispatch(*args, **kwargs)
+
