@@ -31,8 +31,8 @@
     <h1 id="app-title">PINKISH</h1>
     {% if request.user.is_authenticated %}
         <div class="row" style="margin-bottom:10px;">
-            <div class="col-md-12">
-                Welcome {{ request.user.username }}
+            <div class="col-md-12" style="margin-bottom:10px;">
+                Welcome <em>{{ request.user.username }}</em>
             </div>
             <div class="col-md-12">
                 <a href="{% url 'logout' %}" class="btn btn-danger btn-block">Logout</a>
@@ -42,6 +42,13 @@
 
         <!-- master -->
         {% if USER_GROUP == MEMBER_MASTER %}
+            {% comment %}
+            <div class="row">                
+                <div class="col-md-12 col-xs-12">
+                        <button data-user-id="{{ request.user.id }}" id="end-chat-session" class="btn btn-danger btn-block hidden" style="margin-bottom:10px;">End Session</button>
+                </div>
+            </div>
+            {% endcomment %}
             <div class="row">
                 <ul id="chat-request-queue">
                 </ul>
@@ -84,7 +91,7 @@
                                     <input type="text" class="form-control input-block" id="chat-new-message" />
                                 </div>
                             </div>
-                            <div class="form-button col-md-12">
+                            <div class="form-button col-md-12" style="padding-left:0px !important; padding-right:0px !important">
                                 <button type="button" class="btn btn-primary btn-block send-message">Send</button>
                             </div>
                             <div class="clearfix">
@@ -140,6 +147,9 @@
     {% endif %}
     var REQUEST_PENDING = 1;
     var REQUEST_ACCEPTED = 2;
+    var REQUEST_EXPIRED = 3;
+    var REQUEST_ENDED = 4;
+    var REQUEST_CANCELLED = 5;
     var intervalID = null;
     var newMessageIntervalId = null;
     var default_message = 'Send Chat Request';
@@ -210,7 +220,10 @@
                             $('#end-chat-session').removeClass('hidden');
                             $('#cancel-chat-request').addClass('hidden');
                             $('#send-chat-request').addClass('hidden');                            
-                        }
+                            clearInterval(intervalID);
+                            clearInterval(newMessageIntervalId);
+                            newMessageIntervalId = setInterval(checkNewMessages, 2000);
+                        } 
                     }
                     console.log(response);
                 }
@@ -260,11 +273,19 @@
             },
             success: function(response) {
                 var data = JSON.parse(response);
+                toastr.options = {
+                    "extendedTimeOut": 10,
+                    "timeOut": 10
+                }
                 if(data.error) {
                     toastr.error(data.message);
                 } else {
                     toastr.success(data.message);
                     $('#messages-container').removeClass('hidden');
+                    $('#end-chat-session').removeClass('hidden');
+                    clearInterval(intervalID);
+                    clearInterval(newMessageIntervalId);
+                    newMessageIntervalId = setInterval(checkNewMessages, 2000);
                 }
 
 
@@ -326,7 +347,16 @@
             success: function(response) {
                 var data = JSON.parse(response);
                 if(data.error) {
-                    toastr.error(data.message);
+                    if(data.error_code == 'non-existing') {
+                        clearInterval(newMessageIntervalId);
+                        $('#messages-container').addClass('hidden');
+                        $('#chat-log').html('');
+                        REQUEST_CODE = null;
+                        REQUEST_STATUS = null;
+                        toastr.error('Chat has ended')
+                    } else {
+                        toastr.error(data.message);
+                    }
                 } else {
                     $.each(data.new_messages, function() {
                         var that = this;
@@ -343,6 +373,45 @@
                             appendToChat(chat_message);
                         }                                                
                     })
+                }
+            }
+        });
+    }
+
+    function changeChatRequestStatus(code, status) {
+        $.ajax({
+            url: '{% url "chat_request_change_status" %}',
+            type: 'POST',
+            data: {
+                'request_code': code,
+                'status': status
+            },
+            success: function(response) {
+                var data = JSON.parse(response);
+                console.log(data);
+                if(data.error) {
+                    toastr.error(data.message);
+                } else {
+                    $('#messages-container').addClass('hidden');
+                    $('#chat-log').html('');
+                    if(data.status == REQUEST_CANCELLED || data.status == REQUEST_ENDED) {
+                        REQUEST_CODE = null;
+                        REQUEST_STATUS = null;
+                        clearInterval(intervalID);
+                        clearInterval(newMessageIntervalId);
+                        // disciple
+                        {% if USER_GROUP == MEMBER_DISCIPLE %}
+                            $('#send-chat-request').removeClass('hidden');
+                            $('#send-chat-request').removeAttr('disabled');
+                            setElemText('#send-chat-request', default_message);
+                            $('#cancel-chat-request').addClass('hidden');
+                            $('#end-chat-session').addClass('hidden');
+                        {% endif %}  
+                        // master
+                        {% if USER_GROUP == MEMBER_MASTER %}
+
+                        {% endif %}
+                    }
                 }
             }
         });
@@ -414,6 +483,7 @@
             if(REQUEST_CODE) {
                 // session on-going
                 if(REQUEST_STATUS == 2) {
+                    $('#end-chat-session').removeClass('hidden');
                     $('#messages-container').removeClass('hidden'); 
                     // fill chat log
                     $.each(message_list, function() {
@@ -453,6 +523,10 @@
                 }
                 return false;                
             }
+        });
+
+        $('#end-chat-session').on('click', function() {
+            changeChatRequestStatus(REQUEST_CODE, REQUEST_ENDED);
         });
     });
 </script>

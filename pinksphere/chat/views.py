@@ -136,11 +136,37 @@ class ChatView(object):
                                 self).dispatch(*args, **kwargs)
 
 
-    class ChangeChatRequestStaus(View):
+    class ChangeChatRequestStatus(View):
         """
         (All) end chat
         """
-        pass
+        def post(self, request, *args, **kwargs):
+            context = {
+                'error': False,
+            }
+            request_code = request.POST.get('request_code')
+            status = request.POST.get('status')
+            try:
+                chat_request = ChatRequest.objects.get(request_code=request_code)
+                chat_request.status = status
+                chat_request.save()
+
+                msg = ''
+                if status == ChatRequest.STATUS_ENDED:
+                    msg = 'Session has ended'
+                elif status == ChatRequest.STATUS_CANCELLED:
+                    msg = 'Chat request has been cancelled'
+
+                context['message'] = msg
+                context['status'] = status
+            except ChatRequest.DoesNotExist:
+                context['error'] = 'Request no longer exist'
+            return HttpResponse(json.dumps(context))
+
+        @method_decorator(csrf_exempt)
+        def dispatch(self, *args, **kwargs):
+            return super(ChatView.ChangeChatRequestStatus,
+                                self).dispatch(*args, **kwargs)
 
     class CheckRequestStatus(View):
         """
@@ -287,6 +313,7 @@ class ChatView(object):
                 context['new_messages'] = new_messages
             except ChatRequest.DoesNotExist:
                 context['error'] = True
+                context['error_code'] = 'non-existing'
                 context['message'] = 'Chat request does not exist'
             return HttpResponse(json.dumps(context))
 
