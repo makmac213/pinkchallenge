@@ -26,7 +26,7 @@ django-widget-tweaks==1.3
 django-xhtml2pdf==0.0.3
 djangotoolbox==1.6.2
 html5lib==0.99999
-httplib2==0.9.1
+httplib2==0.19.0
 httplib2.system-ca-certs-locater==0.1.2
 kombu==3.0.24
 mongoadmin==0.2
